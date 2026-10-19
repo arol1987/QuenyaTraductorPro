@@ -2,26 +2,19 @@ name: Build Quenya Traductor APK
 
 on:
   workflow_dispatch:
-  push:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Listar archivos para inspección
+      - name: Extraer proyecto ZIP si existe
         run: |
-          echo "=== Archivos en el repositorio ==="
-          ls -la
-
-      - name: Extraer ZIP si existe
-        run: |
-          ZIP=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
-          if [ -n "$ZIP" ]; then
-            echo "Intentando extraer: $ZIP"
-            unzip -q "$ZIP" || true
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            unzip -o "$ZIP_FILE"
           fi
 
       - name: Configurar Java 17
@@ -30,20 +23,19 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Compilar APK con Gradle
+      - name: Dar permisos y compilar
         run: |
-          GRADLEW=$(find . -name "gradlew" | head -n 1)
-          if [ -n "$GRADLEW" ]; then
-            DIR=$(dirname "$GRADLEW")
-            cd "$DIR"
-            chmod +x gradlew
-            ./gradlew assembleDebug
-          else
-            echo "Error: No se encontró el archivo gradlew en el proyecto."
+          GRADLE_EXEC=$(find . -name "gradlew" | head -n 1)
+          if [ -z "$GRADLE_EXEC" ]; then
+            echo "Error: No se encontró el archivo gradlew en el repositorio."
             exit 1
           fi
+          DIR=$(dirname "$GRADLE_EXEC")
+          cd "$DIR"
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
-      - name: Subir APK
+      - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
