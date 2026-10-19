@@ -3,53 +3,53 @@ name: Build Quenya Traductor APK
 on:
   workflow_dispatch:
   push:
-    paths:
-      - "*.zip"
-      - ".github/workflows/android.yml"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Descargar el repositorio
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Preparar el proyecto Android
+      - name: Descomprimir proyecto si existe
         run: |
-          ZIP=$(find . -maxdepth 1 -type f -name "*.zip" | head -n 1)
-
-          if [ -z "$ZIP" ]; then
-            echo "ERROR: No se encontró el ZIP del proyecto."
-            exit 1
+          if ls *quenya*.zip 1> /dev/null 2>&1; then
+            unzip -o *quenya*.zip -d .
+          elif ls *.zip 1> /dev/null 2>&1; then
+            unzip -o *.zip -d .
+          else
+            echo "No se encontró archivo ZIP, continuando con los archivos del repositorio."
           fi
 
-          mkdir -p project
-          unzip -q "$ZIP" -d project
-
-          GRADLEW=$(find project -type f -name gradlew | head -n 1)
-
-          if [ -z "$GRADLEW" ]; then
-            echo "ERROR: El ZIP no contiene gradlew."
-            exit 1
+      - name: Buscar y organizar estructura de Gradle
+        run: |
+          GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
+          if [ -n "$GRADLEW_PATH" ]; then
+            DIR=$(dirname "$GRADLEW_PATH")
+            if [ "$DIR" != "." ]; then
+              echo "Moviendo archivos desde $DIR a la raíz..."
+              cp -r "$DIR"/* . 2>/dev/null || true
+            fi
           fi
 
-          echo "PROJECT_DIR=$(dirname "$GRADLEW")" >> "$GITHUB_ENV"
-
-      - name: Configurar Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: "17"
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Compilar APK
+      - name: Build APK with Gradle
         run: |
-          cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          if [ -f "./gradlew" ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            echo "Error: No se encontró el archivo gradlew en la raíz."
+            exit 1
+          fi
 
-      - name: Guardar APK compilado
-        uses: actions/upload-art
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
